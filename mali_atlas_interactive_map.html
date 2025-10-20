@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mali Empire — Catalan Atlas Interactive Map</title>
+  <style>
+    :root{
+      --bg:#0e0f14;
+      --panel:#1b1e26;
+      --ink:#eaeaea;
+      --muted:#a9b0be;
+      --gold:#d4af37;
+      --shadow: 0 10px 30px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; background:#0b0c10; color:var(--ink); font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;}
+
+    .wrap{display:grid; grid-template-columns:1fr 360px; gap:18px; max-width:1400px; margin:0 auto; padding:18px;}
+    @media (max-width:1024px){ .wrap{grid-template-columns:1fr} }
+
+    .map{position:relative; width:100%; aspect-ratio:16/10; background:#0b0b0e; border-radius:18px; overflow:hidden; box-shadow:var(--shadow);}  
+    .map img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+
+    .spot{position:absolute; transform:translate(-50%,-50%); width:22px; height:22px; border-radius:999px; border:2px solid rgba(0,0,0,.45); background:radial-gradient(circle at 30% 30%, #ffe9a6, #d4af37 55%, #8b6b12); box-shadow:0 0 0 2px rgba(0,0,0,.25), 0 6px 16px rgba(0,0,0,.35); transition:box-shadow .2s ease}
+    .spot:after{content:""; position:absolute; inset:-10px; border-radius:999px; background:rgba(212,175,55,.18); opacity:0; transition:opacity .2s ease}
+    .spot:hover:after{opacity:1}
+    .spot.active{box-shadow:0 0 0 2px rgba(0,0,0,.25), 0 0 18px rgba(212,175,55,.45), 0 0 36px rgba(212,175,55,.25)}
+    .spot.active:after{opacity:1}
+
+    .panel{position:sticky; top:18px; height:calc(100dvh - 36px); background:var(--panel); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; box-shadow:var(--shadow); display:flex; flex-direction:column;}
+    .header{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+    .title{font-weight:700; letter-spacing:.2px}
+    .subtitle{color:var(--muted); font-size:.9rem}
+    .list{margin:8px 0 0; padding:0; list-style:none; display:grid; grid-template-columns:1fr; gap:6px; max-height:45vh; overflow:auto;}
+    .list button{all:unset; display:block; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); cursor:pointer}
+    .list button:hover{background:rgba(255,255,255,.06)}
+    .list button[aria-current="true"]{background:rgba(212,175,55,.12); border-color:rgba(212,175,55,.35)}
+
+    .content{margin-top:10px; padding:12px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.06); border-radius:12px; overflow-y:auto; flex:1 1 auto; max-height:none; color:var(--ink);}  
+    .content h3{margin:0 0 6px; font-size:1.05rem}
+    .content p{margin:0}
+
+    .legend{position:absolute; bottom:12px; right:12px; background:rgba(0,0,0,.45); color:#fff; padding:6px 10px; font-size:.8rem; border-radius:8px; border:1px solid rgba(255,255,255,.1)}
+    .hud{position:absolute; left:8px; bottom:8px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:6px 10px; font-size:.75rem; color:#fff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="map" id="map">
+      <img src="atlas-west-africa.jpg" alt="Catalan Atlas (1375) — West Africa panel" />
+      <div class="legend">Click a gold marker to read about the Mali Empire.</div>
+      <div class="hud" id="hud">x: – %, y: – %  •  Press H to toggle HUD</div>
+    </div>
+
+    <aside class="panel">
+      <div class="header">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3l2.09 6.26H21l-5.17 3.76 1.98 6.11L12 15.27l-5.81 3.86 1.98-6.11L3 9.26h6.91L12 3z" stroke="currentColor" stroke-width="1.25"/></svg>
+        <div>
+          <div class="title">Mali Empire — Interactive Atlas</div>
+          <div class="subtitle">10 hotspots • based on the 1375 Catalan Atlas</div>
+        </div>
+      </div>
+      <ul class="list" id="list"></ul>
+      <div class="content" id="content" tabindex="0"></div>
+    </aside>
+  </div>
+
+  <script>
+    const hotspots = [
+      { id:'origins', title:'Origins', top:38, left:28, text:`The Mali Empire rose in the early 1200s after the decline of Ghana. In the savannas near the Niger River, small Mande chiefdoms united under the warrior Sunjata Keita, who defeated the blacksmith-king Sumaworo Kanté of Soso. Oral tradition remembers this victory as the birth of Mali, linking royal power to destiny, ironworking, and divine favor.` },
+      { id:'political', title:'Political Structure', top:79, left:43, text:`Mali’s government blended traditional authority with Islamic administration. The mansa (“ruler”) stood at the center, supported by nobles, generals, and provincial governors who owed tribute. Justice was delivered in public audiences where the mansa spoke through a jeli (spokesman). Royal power relied on loyalty, tribute, and control of trade rather than direct rule.` },
+      { id:'social', title:'Social Structure & Hierarchy', top:63, left:76, text:`Mali’s society was layered but flexible. Nobles and military leaders stood at the top, followed by farmers, artisans, and merchants. Specialists such as blacksmiths and griots held respected hereditary roles, while enslaved people performed labor in households and agriculture.` },
+      { id:'trade', title:'Trade Routes', top:72, left:24, text:`Mali thrived at the crossroads of the Sahara. Gold from Bambuk and Buré traveled north, exchanged for salt from Taghaza, copper from Takedda, and luxury goods from North Africa. The empire taxed traders entering and leaving its borders, turning geography into revenue.` },
+      { id:'religion', title:'Religion (Syncretism)', top:45, left:54, text:`Islam in Mali spread through merchants and royal patronage rather than conquest. Mansa Musa made it the faith of the court but tolerated local traditions. Many communities practiced a syncretic faith blending Islamic prayer with older Mande spiritual customs—honoring ancestors and holding village rituals alongside Qur’anic study.` },
+      { id:'sunjata', title:'Sunjata', top:20, left:52, text:`The Epic of Sunjata tells how a prophesied child, crippled at birth, rose to unite the Mande peoples and defeat Sumaworo Kanté. Passed down by griots, the story provided Mali with a shared origin myth and affirmed that its rulers governed by both destiny and the people’s memory.` },
+      { id:'mansa', title:'Mansa Musa', top:63, left:52, text:`Ruling from 1312 to 1337, Mansa Musa made Mali the wealthiest state of the medieval world. His 1324 pilgrimage to Mecca brought a caravan of tens of thousands and hundreds of camels bearing gold. His lavish gifts in Cairo depressed gold prices for years and spread Mali’s fame across Afro-Eurasia.` },
+      { id:'griots', title:'Griots', top:63, left:44.5, text:`Griots were hereditary storytellers, poets, and musicians who preserved Mali’s history. They memorized genealogies, heroic tales, and laws, performing with drums and balafon. A king without a griot, people said, was like a person without memory.` },
+      { id:'ibn', title:'Ibn Battuta', top:14, left:26, text:`The Moroccan traveler Ibn Battuta visited Mali around 1352 and recorded one of the earliest eyewitness accounts of life south of the Sahara. He praised the empire’s security and devotion to Islam, though he noted customs that surprised him.` },
+      { id:'abubakr', title:'Abu Bakr II’s Atlantic Voyage', top:42, left:3, text:`Before Mansa Musa, Mali’s ruler Abubakari II reportedly sent two expeditions westward to find the edge of the Atlantic Ocean. The first fleet never returned; the second he led himself—and vanished. The story shows Mali’s curiosity and maritime ambition centuries before European exploration.` }
+    ];
+
+    const mapEl = document.getElementById('map');
+    const listEl = document.getElementById('list');
+    const contentEl = document.getElementById('content');
+    const hudEl = document.getElementById('hud');
+
+    function renderSpots(){
+      hotspots.forEach((h,idx)=>{
+        const b=document.createElement('button');
+        b.className='spot'; b.id=`spot-${h.id}`; b.style.top=h.top+'%'; b.style.left=h.left+'%'; b.setAttribute('aria-label',h.title);
+        b.addEventListener('click',()=>selectHotspot(h.id));
+        mapEl.appendChild(b);
+
+        const li=document.createElement('li');
+        const itemBtn=document.createElement('button');
+        itemBtn.textContent=`${idx+1}. ${h.title}`;
+        itemBtn.addEventListener('click',()=>selectHotspot(h.id,true));
+        itemBtn.id=`list-${h.id}`;
+        li.appendChild(itemBtn);
+        listEl.appendChild(li);
+      });
+    }
+
+    function selectHotspot(id,scroll=false){
+      const h=hotspots.find(x=>x.id===id)||hotspots[0];
+      if(contentEl){contentEl.innerHTML=`<h3>${h.title}</h3><p>${h.text}</p>`; contentEl.focus();}
+      document.querySelectorAll('.list button').forEach(btn=>btn.setAttribute('aria-current','false'));
+      const active=document.getElementById(`list-${id}`);
+      if(active){active.setAttribute('aria-current','true'); if(scroll) active.scrollIntoView({block:'nearest'});}
+      document.querySelectorAll('.spot').forEach(s=>s.classList.remove('active'));
+      const spotBtn=document.getElementById(`spot-${id}`);
+      if(spotBtn){spotBtn.classList.add('active');}
+    }
+
+    let hudOn=true;
+    mapEl.addEventListener('mousemove',e=>{
+      if(!hudOn)return; const rect=mapEl.getBoundingClientRect();
+      const x=((e.clientX-rect.left)/rect.width)*100; const y=((e.clientY-rect.top)/rect.height)*100;
+      hudEl.textContent=`x: ${x.toFixed(1)} %, y: ${y.toFixed(1)} %  •  Press H to toggle HUD`;
+    });
+    window.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='h'){hudOn=!hudOn; hudEl.style.display=hudOn?'block':'none';}});
+
+    renderSpots();
+    window.requestAnimationFrame(()=>selectHotspot(hotspots[0].id));
+  </script>
+</body>
+</html>
